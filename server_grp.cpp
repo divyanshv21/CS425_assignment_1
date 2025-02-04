@@ -4,6 +4,7 @@
 #include <thread>
 #include <mutex>
 #include <map>
+#include <set>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -11,30 +12,40 @@
 
 #define BUFFER_SIZE 1024
 
-std::map<int, std::thread> client_threads;
-std::map<std::string, std::string> users;
-std::map<std::string, int> user_socket;
-std::map<int, std::string> socket_user;
-std::map<std::string, std::set<int>> user_groups;
+// Global data structures
+std::map<int, std::thread> client_threads;     // Mapping of client socket to thread
+std::map<std::string, std::string> users;      // Store username-password pairs
+std::map<std::string, int> user_socket;        // Mapping of username to socket
+std::map<int, std::string> socket_user;        // Mapping of socket to username
+std::map<std::string, std::set<int>> user_groups; // Mapping of group to clients in the group
 
-std::mutex user_mutex, group_mutex;
+std::mutex user_mutex, group_mutex;            // Mutexes for synchronizing access to shared resources
 
+/**
+ * Utility function to handle errors and exit the program.
+ */
 void error(const char *msg) {
     perror(msg);
     exit(1);
 }
 
-void broadcast(const int client_socket, std::string message) {
-    message = "[ Server ]: " + message;
+/**
+ * Broadcast a message to all users except the sender.
+ */
+void broadcast(const int client_socket, const std::string& message) {
+    std::string full_message = "[ Server ]: " + message;
     user_mutex.lock();
-    for (auto & it : user_socket) {
+    for (const auto& it : user_socket) {
         if (it.second != client_socket) {
-            send(it.second, message.c_str(), BUFFER_SIZE, 0);
+            send(it.second, full_message.c_str(), BUFFER_SIZE, 0);
         }
     }
     user_mutex.unlock();
 }
 
+/**
+ * Trim leading and trailing whitespace from a string.
+ */
 std::string trim(const std::string &str) {
     size_t start = str.find_first_not_of(" \t\n\r");
     size_t end = str.find_last_not_of(" \t\n\r");
@@ -46,58 +57,76 @@ std::string trim(const std::string &str) {
     return str.substr(start, end - start + 1);
 }
 
+/**
+ * Authenticate the user by username and password.
+ */
 void authenticate(int client_socket) {
     char buffer[BUFFER_SIZE];
+    std::string username, password;
 
-    // Request username and password
+    // Request username
     memset(buffer, 0, sizeof(buffer));
     send(client_socket, "Enter username: ", 100, 0);
     ssize_t bytes_received = recv(client_socket, buffer, BUFFER_SIZE, 0);
-    if (bytes_received <= 0) { // Handle client disconnection during authentication
+    if (bytes_received <= 0) {
         close(client_socket);
         return;
     }
-    std::string username = trim(std::string(buffer));
+    username = trim(std::string(buffer));
 
+    // Check if the user is already logged in
+    user_mutex.lock();
+    if (user_socket.find(username) != user_socket.end()) {
+        user_mutex.unlock();
+        send(client_socket, "User is already logged in.", 100, 0);
+        close(client_socket); // Reject login if already logged in
+        return;
+    }
+
+    // Request password
     memset(buffer, 0, sizeof(buffer));
     send(client_socket, "Enter password: ", 100, 0);
     bytes_received = recv(client_socket, buffer, BUFFER_SIZE, 0);
-    if (bytes_received <= 0) { // Handle client disconnection during authentication
+    if (bytes_received <= 0) {
         close(client_socket);
         return;
     }
-    std::string password = std::string(buffer);  // No trimming applied
+    password = std::string(buffer);  // No trimming applied
 
-    // Authentication check (no empty string checks for username or password)
-    user_mutex.lock();
+    // Authenticate
     if (users.find(username) == users.end() || users[username] != password) {
         user_mutex.unlock();
         send(client_socket, "Authentication failed.", 100, 0);
-        close(client_socket); // Close the connection for failed clients
+        close(client_socket);
         return;
     } else {
+        // Successful login
         user_socket[username] = client_socket;
         socket_user[client_socket] = username;
         user_mutex.unlock();
         send(client_socket, "Welcome to the chat server!", 100, 0);
-
-        // Notify other clients that the new user has joined the chat
         broadcast(client_socket, username + " has joined the chat.");
     }
 }
 
-void msg(int client_socket, const std::string& receiver, std::string message) {
+/**
+ * Send a private message to a user.
+ */
+void msg(int client_socket, const std::string& receiver, const std::string& message) {
     user_mutex.lock();
     if (user_socket.find(receiver) == user_socket.end()) {
         user_mutex.unlock();
         send(client_socket, "User not found.", 100, 0);
     } else {
-        message = "[ " + socket_user[client_socket] + " ]: " + message;
+        std::string full_message = "[ " + socket_user[client_socket] + " ]: " + message;
         user_mutex.unlock();
-        send(user_socket[receiver], message.c_str(), BUFFER_SIZE, 0);
+        send(user_socket[receiver], full_message.c_str(), BUFFER_SIZE, 0);
     }
 }
 
+/**
+ * Create a new chat group.
+ */
 void create_group(int client_socket, const std::string& group_name) {
     group_mutex.lock();
     if (user_groups.find(group_name) != user_groups.end()) {
@@ -110,6 +139,9 @@ void create_group(int client_socket, const std::string& group_name) {
     send(client_socket, ("Group " + group_name + " created.").c_str(), 100, 0);
 }
 
+/**
+ * Join an existing group.
+ */
 void join_group(int client_socket, const std::string& group_name) {
     group_mutex.lock();
     if (user_groups.find(group_name) == user_groups.end()) {
@@ -129,6 +161,9 @@ void join_group(int client_socket, const std::string& group_name) {
     send(client_socket, ("You joined the group " + group_name + ".").c_str(), 100, 0);
 }
 
+/**
+ * Leave a group.
+ */
 void leave_group(int client_socket, const std::string& group_name) {
     group_mutex.lock();
     if (user_groups[group_name].find(client_socket) == user_groups[group_name].end()) {
@@ -141,43 +176,41 @@ void leave_group(int client_socket, const std::string& group_name) {
     send(client_socket, ("You have left the group " + group_name + ".").c_str(), 100, 0);
 }
 
-void group_msg(int client_socket, const std::string& group_name, std::string message) {
+/**
+ * Send a message to a group.
+ */
+void group_msg(int client_socket, const std::string& group_name, const std::string& message) {
     group_mutex.lock();
     if (user_groups[group_name].find(client_socket) == user_groups[group_name].end()) {
         group_mutex.unlock();
         send(client_socket, ("You are not a member of group: " + group_name).c_str(), 100, 0);
         return;
     }
-    message = "[ Group " + group_name + " ]: " + message;
-    for (auto it = user_groups[group_name].begin(); it != user_groups[group_name].end(); it++) {
-        if (*it != client_socket) {
-            send(*it, message.c_str(), BUFFER_SIZE, 0);
-        } else {
-            send(*it, "Message successfully sent", 100, 0);
-        }
+    std::string full_message = "[ Group " + group_name + " ]: " + message;
+    for (int socket : user_groups[group_name]) {
+        send(socket, full_message.c_str(), BUFFER_SIZE, 0);
     }
     group_mutex.unlock();
 }
 
+/**
+ * Handle the communication with a connected client.
+ */
 void handle_client(int client_socket) {
-    std::cout << "Client socket " << client_socket << std::endl;
     authenticate(client_socket);
-    if (client_socket < 0) return;  // Ensure the client is authenticated before continuing
+    if (client_socket < 0) return;
 
     while (true) {
         char buffer[BUFFER_SIZE];
         memset(buffer, 0, sizeof(buffer));
         int bytes_received = recv(client_socket, buffer, BUFFER_SIZE, 0);
         if (bytes_received <= 0) {
-            std::cout << "Client disconnected: " << client_socket << std::endl;
-            // Handle client disconnection gracefully
             user_mutex.lock();
             std::string username = socket_user[client_socket];
             socket_user.erase(client_socket);
             user_socket.erase(username);
             user_mutex.unlock();
 
-            // Remove the client from all groups they were part of
             group_mutex.lock();
             for (auto& group : user_groups) {
                 group.second.erase(client_socket);
@@ -192,6 +225,7 @@ void handle_client(int client_socket) {
         std::stringstream ss(input);
         std::string command;
         ss >> command;
+
         if (command == "/broadcast") {
             std::string message;
             getline(ss, message);
@@ -226,11 +260,14 @@ void handle_client(int client_socket) {
     }
 }
 
+/**
+ * Load users from a file into the `users` map.
+ */
 void load_all_users() {
     std::ifstream file("users.txt");
     std::string line;
     while (getline(file, line)) {
-        uint32_t del_pos = line.find(":");
+        size_t del_pos = line.find(":");
         std::string username = line.substr(0, del_pos);
         std::string password = line.substr(del_pos + 1);
         users[username] = password;
@@ -238,6 +275,9 @@ void load_all_users() {
     file.close();
 }
 
+/**
+ * Initialize and start the server, handling incoming client connections.
+ */
 void start_server() {
     load_all_users();
 
@@ -251,7 +291,6 @@ void start_server() {
     }
 
     memset((char *)&server_address, 0, sizeof(server_address));
-
     server_address.sin_family = AF_INET;
     server_address.sin_port = htons(12345);
     server_address.sin_addr.s_addr = inet_addr("127.0.0.1");
@@ -279,6 +318,9 @@ void start_server() {
     close(server_socket);
 }
 
+/**
+ * Main function to start the server.
+ */
 int main() {
     start_server();
     return 0;
