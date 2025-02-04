@@ -91,9 +91,9 @@ The server starts by loading the list of users from `users.txt` and then listens
    Fix: Ensure that after authentication failure, only the client that failed is disconnected, and the server continues accepting other clients.
 ## Contribution of Each Member
 
-- **Deepika Sahu**: 33% - Wrote unit tests, handled debugging, and prepared the README file.
-- **Satyam Gupta**: 34% - Designed and implemented the core functionality of user authentication, messaging, and group management.
-- **Divyansh Verma**: 33% - Implemented thread management and concurrency handling, including synchronization using mutexes.
+- **Deepika Sahu**: 33% - Developed server initialization, connection handling, and user authentication. Wrote unit tests, handled debugging.
+- **Satyam Gupta**: 34% - Designed and implemented the core functionality of messaging systems (private and group) and group creation/management features.
+- **Divyansh Verma**: 33% - Implemented thread management and concurrency handling, including synchronization using mutexes. Prepared the README file.
 
 ## Sources Referred
 
