@@ -16,7 +16,7 @@
 
 ## Features Not Implemented
 
-- **User Session Management**: The server doesn’t store long-term session data, so if the server crashes, all users will need to log in again.
+- **User Session Management**: The server doesn’t store data from previous sessions.
 
 ## Design Decisions
 
@@ -89,12 +89,26 @@ The server starts by loading the list of users from `users.txt` and then listens
 2. **Concurrency Issues**: Ensuring thread safety while accessing shared data structures like `user_socket` and `user_groups` required careful synchronization using mutexes.
 3. **Server Stopping on Failed Authentication**: If one client fails authentication, the server was stopping, and all other clients would be disconnected. This issue arises from improper error handling, where a failed authentication might cause an exit or shutdown of the server.
    Fix: Ensure that after authentication failure, only the client that failed is disconnected, and the server continues accepting other clients.
+
 ## Contribution of Each Member
 
-- **Deepika Sahu**: 33% - Developed server initialization, connection handling, and user authentication. Wrote unit tests, handled debugging.
-- **Satyam Gupta**: 34% - Designed and implemented the core functionality of messaging systems (private and group) and group creation/management features.
-- **Divyansh Verma**: 33% - Implemented thread management and concurrency handling, including synchronization using mutexes. Prepared the README file.
+1. **Deepika Sahu (33%)**
+    - Developed **server initialization** and **connection handling**.
+    - Implemented **user authentication** with credential validation.
+    - Wrote **unit tests** to improve reliability.
+    - Performed **debugging and optimization**.
 
+2. **Satyam Gupta (34%)**
+    - Built **private/group messaging** and **group management**.
+    - Optimized **message queueing** for real-time sync.
+    - Improved **scalability** and **system efficiency**.
+
+3. **Divyansh Verma (33%)**
+    - Handled **multi-threading** and **mutex synchronization**.
+    - Optimized **socket management** and **message queues**.
+    - Wrote **README** documentation.
+    - Resolved **performance bottlenecks** mentioned above.
+   
 ## Sources Referred
 
 - C++ documentation: [cppreference.com](https://en.cppreference.com/)
@@ -109,4 +123,3 @@ We hereby declare that the code submitted is our original work and has not been 
 
 - **Suggestions**: It could benefit from additional documentation and examples in the project’s repository.
 - **Feedback**: It was a great exercise to work on real-world server-client communication with multi-threading.
-
