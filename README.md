@@ -90,36 +90,3 @@ The server starts by loading the list of users from `users.txt` and then listens
 3. **Server Stopping on Failed Authentication**: If one client fails authentication, the server was stopping, and all other clients would be disconnected. This issue arises from improper error handling, where a failed authentication might cause an exit or shutdown of the server.
    Fix: Ensure that after authentication failure, only the client that failed is disconnected, and the server continues accepting other clients.
 
-## Contribution of Each Member
-
-1. **Deepika Sahu (33%)**
-    - Developed **server initialization** and **connection handling**.
-    - Implemented **user authentication** with credential validation.
-    - Wrote **unit tests** to improve reliability.
-    - Performed **debugging and optimization**.
-
-2. **Satyam Gupta (34%)**
-    - Built **private/group messaging** and **group management**.
-    - Optimized **message queueing** for real-time sync.
-    - Improved **scalability** and **system efficiency**.
-
-3. **Divyansh Verma (33%)**
-    - Handled **multi-threading** and **mutex synchronization**.
-    - Optimized **socket management** and **message queues**.
-    - Wrote **README** documentation.
-    - Resolved **performance bottlenecks** mentioned above.
-   
-## Sources Referred
-
-- C++ documentation: [cppreference.com](https://en.cppreference.com/)
-- Socket Programming: [Socket Programming Guide](https://beej.us/guide/bgnet/)
-- Threading and synchronization: [Modern C++ Threading - cppcon 2019](https://www.youtube.com/watch?v=NKHG1lJjCzk)
-
-## Declaration
-
-We hereby declare that the code submitted is our original work and has not been plagiarized. 
-
-## Feedback
-
-- **Suggestions**: It could benefit from additional documentation and examples in the project’s repository.
-- **Feedback**: It was a great exercise to work on real-world server-client communication with multi-threading.
